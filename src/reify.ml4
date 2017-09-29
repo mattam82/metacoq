@@ -917,6 +917,18 @@ struct
           let c = denote_constant const in
           Evarutil.e_new_global evdref (Globnames.ConstRef c)
       | _ -> raise (Failure "ill-typed (const)")
+    else if Term.eq_constr h tProj then
+      match args with
+      | [ proj ; t ] ->
+         let (p, narg) = from_coq_pair proj in
+         let (ind, _) = from_coq_pair p in
+	 let ind' = denote_inductive ind in
+         let (mib,mip) = Global.lookup_inductive ind' in
+         let s = match mib.Declarations.mind_record with
+           | Some (Some (id, projs, pbs)) -> projs.(nat_to_int narg)
+	   | _ -> failwith "lkenr" in
+         Term.mkProj (Names.Projection.make s false, aux t)
+      | _ -> raise (Failure "ill-typed (proj)")
     else not_supported trm
     in aux trm
 
