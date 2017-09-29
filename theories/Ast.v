@@ -107,3 +107,27 @@ Record mutual_inductive_entry : Set := {
 (*  mind_entry_universes : Univ.universe_context; *)
   mind_entry_private : option bool
 }.
+
+
+Record constant_decl :=
+  { cst_name : ident;
+    cst_type : term;
+    cst_body : option term }.
+
+Record minductive_decl :=
+  { ind_npars : nat;
+    ind_bodies : list inductive_body }.
+
+Inductive global_decl :=
+| ConstantDecl : ident -> constant_decl -> global_decl
+| InductiveDecl : ident -> minductive_decl -> global_decl.
+
+Definition extend_program (p : program) (d : global_decl) : program :=
+  match d with
+  | ConstantDecl i {| cst_name:=_;  cst_type:=ty;  cst_body:=Some body |}
+    => PConstr i ty body p
+  | ConstantDecl i {| cst_name:=_;  cst_type:=ty;  cst_body:=None |}
+    => PAxiom i ty p
+  | InductiveDecl i {| ind_npars:=n; ind_bodies := l |}
+    => PType i n l p
+  end.
