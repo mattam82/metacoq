@@ -63,18 +63,6 @@ Definition succ_sort s :=
 
 (** Typing derivations *)
 
-Record constant_decl :=
-  { cst_name : ident;
-    cst_type : term;
-    cst_body : option term }.
-
-Record minductive_decl :=
-  { ind_npars : nat;
-    ind_bodies : list inductive_body }.
-
-Inductive global_decl :=
-| ConstantDecl : ident -> constant_decl -> global_decl
-| InductiveDecl : ident -> minductive_decl -> global_decl.
 
 Definition global_decl_ident d :=
   match d with
