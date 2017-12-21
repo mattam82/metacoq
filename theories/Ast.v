@@ -1,12 +1,13 @@
 Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPos.
 
-Definition universe := string.
 Definition ident := string.
 
 Inductive level : Set :=
   Level (_ : string)
 | LevelVar (_ : nat) (* are these debruijn indices ? *).
+
+Definition universe := list (level * bool).
 
 Inductive sort : Set :=
 | sProp
@@ -141,5 +142,5 @@ Inductive TemplateMonad : Type -> Prop :=
 (** unquote then reduce then quote *)
 | tmUnQReduceQ : reductionStrategy -> term (* -> strategy? *)-> TemplateMonad term
 | tmUnquote : term  -> TemplateMonad {T:Type & T}
-| tmFreshName : ident -> TemplateMonad bool 
+| tmFreshName : ident -> TemplateMonad bool
     (* yes => Guarenteed to not cause "... already declared" error *).
