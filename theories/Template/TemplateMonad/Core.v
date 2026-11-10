@@ -161,7 +161,7 @@ Definition tmQuoteDefinitionRed id rd {A} (t : A)
 Definition tmQuoteRecDefinition id {A} (t : A)
   := tmQuoteRec t >>= tmDefinition id.
 
-Definition tmMkDefinition (id : ident) (tm : term) : TemplateMonad unit
+Definition tmMkDefinition@{t u} (id : ident) (tm : term) : TemplateMonad@{t u} unit
   := t' <- tmUnquote tm ;;
      t'' <- tmEval (unfold (Common_kn "my_projT2")) (my_projT2 t') ;;
      tmDefinitionRed id (Some (unfold (Common_kn "my_projT1"))) t'' ;;

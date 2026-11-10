@@ -229,7 +229,7 @@ Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSe
   extract_def_name a.
 
 Definition eta_expand_def
-           {A}
+           {A : Type}
            (overridden_masks : kername -> option bitmask)
            (trim_inds trim_consts : bool) (def : A) : TemplateMonad _ :=
   cur_mod <- tmCurrentModPath tt;;

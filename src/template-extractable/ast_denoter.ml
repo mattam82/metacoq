@@ -239,7 +239,7 @@ struct
 
 
   let unquote_universe_instance(evm: Evd.evar_map) (l: quoted_univ_instance): Evd.evar_map * UVars.Instance.t
-  = (evm,  UVars.Instance.of_array ([||], Array.of_list (List.map (universe_to_level $ unquote_universe) l))) (* FIXME: algebraics *)
+  = (evm,  UVars.Instance.of_array ([||], Array.of_list (List.map unquote_universe l)))
 
   let unquote_universe evm trm = evm, unquote_universe trm
 

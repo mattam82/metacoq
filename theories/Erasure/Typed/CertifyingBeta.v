@@ -65,7 +65,7 @@ Definition betared_globals_template
 Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSet.elt :=
   extract_def_name a.
 
-Definition betared_def {A}
+Definition betared_def {A : Type}
            (def : A) : TemplateMonad global_declarations :=
   mpath <- tmCurrentModPath tt;;
   p <- tmQuoteRecTransp def false ;;
