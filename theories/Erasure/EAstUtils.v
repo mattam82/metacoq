@@ -394,7 +394,7 @@ Fixpoint string_of_term (t : term) : string :=
 Section PrimDeps.
   Context (deps : term -> KernameSet.t).
 
-  Equations prim_global_deps (p : prim_val term) : KernameSet.t :=
+  Equations prim_global_deps (p : prim_val@{Set} term) : KernameSet.t :=
    | (primInt; primIntModel i) => KernameSet.empty
    | (primFloat; primFloatModel f) => KernameSet.empty
    | (primString; primStringModel s) => KernameSet.empty

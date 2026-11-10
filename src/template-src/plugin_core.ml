@@ -288,7 +288,8 @@ let tmInductive (infer_univs : bool) (mie : mutual_inductive_entry) : unit tm =
         mie
       else mie
     in
-    let names = (UState.Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders) in
+    let names = UState.{ universes_entry_universes = Monomorphic_entry Univ.ContextSet.empty;
+                         universes_entry_binders = UnivNames.empty_binders } in
     ignore (DeclareInd.declare_mutual_inductive_with_eliminations mie names []) ;
     success ~st (Global.env ()) evd ()
 

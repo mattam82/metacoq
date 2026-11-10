@@ -64,8 +64,8 @@ let retypecheck_term_dependencies ~opaque_access env gr =
     let fake_level i _ =
      Univ.Level.make (Univ.UGlobal.make dp "" i)
     in
-    let fake_inst = UVars.Instance.of_array (Array.mapi fake_quality qnames, Array.mapi fake_level unames) in
-    let cu = (c, fake_inst) in
+    let fake_inst = UVars.LevelInstance.of_array (Array.mapi fake_quality qnames, Array.mapi fake_level unames) in
+    let cu = (c, UVars.Instance.of_level_instance fake_inst) in
     let cbody, ctype, cstrs = Environ.constant_value_and_type env cu in
     let env' = Environ.push_context (UVars.UContext.make names (fake_inst, cstrs)) env in
     typecheck env' ctype;

@@ -139,10 +139,6 @@ struct
   let quote_inductive (kn, i) = { inductive_mind = kn ; inductive_ind = i }
   let quote_proj ind p a = { proj_ind = ind; proj_npars = p; proj_arg = a }
 
-  let is_Lt = function
-    | Univ.UnivConstraint.Lt -> true
-    | _ -> false
-
   let is_Le = function
     | Univ.UnivConstraint.Le -> true
     | _ -> false
@@ -154,20 +150,17 @@ struct
   let universe_of_level = Universes0.Universe.of_level
 
   let quote_univ_constraint ((l, ct, r) : Univ.UnivConstraint.t) : quoted_univ_constraint =
-    let ql = quote_level l in
-    let qr = quote_level r in
-    let ul = Universes0.Universe.of_level ql in
-    let ur = Universes0.Universe.of_level qr in
+    let ul = quote_universe l in
+    let ur = quote_universe r in
     let open UnivConstraintType.ConstraintType in
     match ct with
-    | Univ.UnivConstraint.Lt -> ((Universes0.Universe.succ ul, Le), ur)
     | Univ.UnivConstraint.Le -> ((ul, Le), ur)
     | Univ.UnivConstraint.Eq -> ((ul, Eq), ur)
 
   let quote_univ_level = quote_level
 
-  let quote_univ_level_instance (i : UVars.Instance.t) : quoted_univ_level_instance =
-    let qarr, uarr = UVars.Instance.to_array i in
+  let quote_univ_level_instance (i : UVars.LevelInstance.t) : quoted_univ_level_instance =
+    let qarr, uarr = UVars.LevelInstance.to_array i in
     let () = if not (CArray.is_empty qarr) then
         CErrors.user_err Pp.(str "Quoting sort polymorphic instances not yet supported.")
     in
@@ -182,7 +175,7 @@ struct
         CErrors.user_err Pp.(str "Quoting sort polymorphic instances not yet supported.")
     in
     (* we assume that valid instances do not contain [Prop] or [SProp] *)
-    try CArray.map_to_list (Universes0.Universe.of_level $ quote_level) uarr
+    try CArray.map_to_list quote_universe uarr
     with e -> assert false
 
    (* (Prop, Le | Lt, l),  (Prop, Eq, Prop) -- trivial, (l, c, Prop)  -- unsatisfiable  *)
@@ -201,6 +194,8 @@ struct
     | Irrelevant -> Universes0.Variance.Irrelevant
     | Covariant -> Universes0.Variance.Covariant
     | Invariant -> Universes0.Variance.Invariant
+    (* MetaRocq has no contravariance: approximate by invariance *)
+    | Contravariant -> Universes0.Variance.Invariant
 
   let quote_univ_context (uctx : UVars.UContext.t) : quoted_univ_context =
     let { UVars.quals = qarr; UVars.univs = uarr} = (UVars.UContext.names uctx) in

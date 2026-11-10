@@ -309,7 +309,7 @@ Section primtheory.
     primProp pr p -> test_prim pr p.
   Proof.
     case: (test_prim_primProp (fun x => pr x) pr) => //.
-    intros t; destruct (pr t); constructor; eauto. eauto.
+    intros t; destruct (pr t); constructor; eauto. all: eauto.
   Qed.
 
   Lemma primProp_conj {P Q} : primProp P p -> primProp Q p -> primProp (fun x => P x × Q x) p.

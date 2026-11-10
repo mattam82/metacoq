@@ -96,25 +96,20 @@ let unquote_Z trm : int =
 let unquote_constraint_type trm (* of type constraint_type *) : UnivConstraint.kind =
   let (h,args) = app_full trm [] in
   match args with
-    [x] ->
-    if constr_equall h tunivLe then
-      let n = unquote_Z x in
-      if n = 0 then UnivConstraint.Le
-      else UnivConstraint.Lt
-    else not_supported_verb trm "unquote_constraint_type"
   | [] ->
-    if constr_equall h tunivEq then UnivConstraint.Eq
+    if constr_equall h tunivLe then UnivConstraint.Le
+    else if constr_equall h tunivEq then UnivConstraint.Eq
     else not_supported_verb trm "unquote_constraint_type"
   | _ -> bad_term_verb trm "unquote_constraint_type"
 
 
 let unquote_univ_constraint evm c (* of type univ_constraint *) : _ * UnivConstraint.t =
-  let c, l2 = unquote_pair c in
-  let l1, c = unquote_pair c in
-  let evm, l1 = unquote_level evm l1 in
-  let evm, l2 = unquote_level evm l2 in
+  let c, u2 = unquote_pair c in
+  let u1, c = unquote_pair c in
+  let evm, u1 = unquote_universe evm u1 in
+  let evm, u2 = unquote_universe evm u2 in
   let c = unquote_constraint_type c in
-  evm, (l1, c, l2)
+  evm, (u1, c, u2)
 
 
 (* set given by MSets.MSetWeakList.Make *)
@@ -160,14 +155,14 @@ let denote_ucontext env evm trm (* of type UContext.t *) : _ * UVars.UContext.t 
   let l = unquote_list l in
   let evm, vars = map_evm unquote_level evm l in
   let evm, c = unquote_constraints env evm c in
-  let inst = Instance.of_array ([||], Array.of_list vars) in
+  let inst = LevelInstance.of_array ([||], Array.of_list vars) in
   evm, (UVars.UContext.make { UVars.quals = [||]; UVars.univs = names} (inst, PConstraints.of_univs c))
 
 let denote_aucontext env evm trm (* of type AbstractContext.t *) : _ * UVars.AbstractContext.t =
   let i, c = unquote_pair trm in
   let l = unquote_list i in
   let vars = List.mapi (fun i l -> Level.var i) l in
-  let vars = Instance.of_array ([||], Array.of_list vars) in
+  let vars = LevelInstance.of_array ([||], Array.of_list vars) in
   let evm, c = unquote_constraints env evm c in
   evm, snd (abstract_universes (UContext.make { UVars.quals = [||]; UVars.univs = CArray.map_of_list unquote_name l}
                                   (vars, PConstraints.of_univs c)))
@@ -196,7 +191,7 @@ type universe_context_type =
 
 let _to_entry_inductive_universes = function
   | Monomorphic_uctx ctx -> UState.Monomorphic_entry ctx
-  | Polymorphic_uctx ctx -> UState.Polymorphic_entry (AbstractContext.repr ctx)
+  | Polymorphic_uctx ctx -> UState.Polymorphic_entry (AbstractContext.repr ctx, None)
 
 let _denote_universes_decl env evm trm (* of type universes_decl *) : _ * universe_context_type =
   let (h, args) = app_full trm [] in
@@ -220,7 +215,7 @@ let denote_universes_entry env evm trm (* of type universes_entry *) : _ * UStat
     else bad_term_verb trm "denote_universes_entry"
   | ctx :: [] -> if constr_equall h cPolymorphic_entry then
                    let evm, ctx = denote_ucontext env evm ctx in
-                   evm, UState.Polymorphic_entry ctx
+                   evm, UState.Polymorphic_entry (ctx, None)
                  else
                    not_supported_verb trm "denote_universes_entry"
   | _ -> bad_term_verb trm "denote_universes_entry"
@@ -277,24 +272,22 @@ let unquote_mutual_inductive_entry env evm trm (* of type mutual_inductive_entry
        let evm, inds = map_evm (unquote_one_inductive_entry env) evm (unquote_list inds) in
        let evm, univs = denote_universes_entry env evm univs in
        let template = unquote_bool template in
-       let variance = unquote_map_option
-           (fun v -> CArray.map_of_list (unquote_map_option unquote_variance) (unquote_list v))
-           variance
-       in
+       (* The kernel represents variances by occurrences of universes, which MetaRocq does
+          not model: we let the kernel infer the variances of cumulative inductives. *)
+       let variance = Option.map (fun _ -> Entries.Infer_variances) (unquote_option variance) in
        let priv = unquote_map_option unquote_bool priv in
        let mind = { mind_entry_record = record;
               mind_entry_finite = finite;
               mind_entry_params = params;
               mind_entry_inds = inds;
               mind_entry_universes = Entries.Monomorphic_ind_entry;
-              mind_entry_variance = variance;
               mind_entry_private = priv }
        in
        let ctx, mind = match univs with
          | UState.Monomorphic_entry ctx ->
            if template then
              let mk_anon_names u =
-               let qs, us = UVars.Instance.to_array u in
+               let qs, us = UVars.LevelInstance.to_array u in
                { UVars.quals = Array.make (Array.length qs) Anonymous; UVars.univs = Array.make (Array.length us) Anonymous}
              in
              let uctx = UVars.UContext.of_context_set mk_anon_names ((Sorts.QVar.Set.empty, Sorts.ElimConstraints.empty), ctx)  in
@@ -302,9 +295,9 @@ let unquote_mutual_inductive_entry env evm trm (* of type mutual_inductive_entry
              let auctx, mind = Tm_util.RetypeMindEntry.abstract_mentry_univs uctx mind in
              Univ.ContextSet.empty, { mind with mind_entry_universes = Entries.Template_ind_entry { uctx = auctx; default_univs } }
           else ctx, mind
-       | UState.Polymorphic_entry uctx ->
+       | UState.Polymorphic_entry (uctx, _) ->
          let auctx, mind = Tm_util.RetypeMindEntry.abstract_mentry_univs uctx mind in
-         Univ.ContextSet.empty, { mind with mind_entry_universes = Entries.Polymorphic_ind_entry auctx }
+         Univ.ContextSet.empty, { mind with mind_entry_universes = Entries.Polymorphic_ind_entry (auctx, variance) }
        in
        evm, ctx, mind
     | _ -> bad_term_verb trm "unquote_mutual_inductive_entry"
@@ -326,7 +319,8 @@ let declare_inductive (env: Environ.env) (evm: Evd.evar_map) (infer_univs : bool
       Evd.merge_universe_context_set Evd.UnivRigid evm ctx, mind
     else evm, mind
   in
-  let names = (UState.Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders) in
+  let names = UState.{ universes_entry_universes = Monomorphic_entry Univ.ContextSet.empty;
+                       universes_entry_binders = UnivNames.empty_binders } in
   let primitive_expected =
     match mind.mind_entry_record with
     | Some (Some _) -> true
@@ -370,7 +364,7 @@ let rec run_template_program_rec opaque_access ~poly ?(intactic=false) (k : Cons
       let name = unquote_ident (reduce_all env evm name) in
       let kind = Decls.IsAssumption Decls.Definitional in
       (* FIXME: better handling of evm *)
-      let empty_mono_univ_entry = UState.Monomorphic_entry Univ.ContextSet.empty, UnivNames.empty_binders in
+      let empty_mono_univ_entry = UState.{ universes_entry_universes = Monomorphic_entry Univ.ContextSet.empty; universes_entry_binders = UnivNames.empty_binders } in
       Declare.declare_variable ~typing_flags:None ~name ~kind (SectionLocalAssum { typ; impl=Glob_term.Explicit; univs=empty_mono_univ_entry });
       let env = Global.env () in
       k ~st env evm (Lazy.force unit_tt)
@@ -560,7 +554,7 @@ let rec run_template_program_rec opaque_access ~poly ?(intactic=false) (k : Cons
          let evm, t' = denote_term env evm (reduce_all env evm t) in
          (* Typecheck. *)
          let evm, typ = Typing.type_of env evm (EConstr.of_constr t') in
-         let evm, typ = Evarsolve.refresh_universes (Some false) env evm typ in
+         let evm, typ = Evarsolve.refresh_universes ~status:Evd.univ_rigid (Some false) env evm typ in
          (* Solve evars. *)
          let evm = Typeclasses.resolve_typeclasses env evm in
          let t' = Evarutil.nf_evars_universes evm t' in

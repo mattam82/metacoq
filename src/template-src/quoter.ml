@@ -109,6 +109,7 @@ sig
 
   val quote_univ_constraint : Univ.UnivConstraint.t -> quoted_univ_constraint
   val quote_univ_level : Univ.Level.t -> quoted_univ_level
+  val quote_universe : Univ.Universe.t -> quoted_universe
   val quote_univ_instance : UVars.Instance.t -> quoted_univ_instance
   val quote_univ_constraints : Univ.UnivConstraints.t -> quoted_univ_constraints
   val quote_univ_context : UVars.UContext.t -> quoted_univ_context
@@ -193,12 +194,88 @@ struct
 
   let get_abstract_inductive_universes iu =
     match iu with
-    | Declarations.Monomorphic -> UVars.UContext.empty
-    | Polymorphic ctx -> UVars.AbstractContext.repr ctx
+    | Declarations.Template _ -> UVars.UContext.empty
+    | Declarations.Polymorphic (ctx, _) -> UVars.AbstractContext.repr ctx
 
-  let get_template_instance mind = match mind.Declarations.mind_template with
-  | None -> None
-  | Some templ -> Some templ.template_defaults  
+  let get_template_instance mind = match mind.Declarations.mind_universes with
+  | Declarations.Polymorphic _ -> None
+  | Declarations.Template templ -> Some (UVars.Instance.of_level_instance templ.template_defaults)
+
+  (* MetaRocq models the variance of cumulative inductives by one of Irrelevant, Covariant
+     or Invariant per universe level, comparing fully applied inductives, and checks that
+     their arities respect these variances. We use the cumulativity variance of a full
+     application, together with the variance of the occurrences in the arity, Contravariant
+     being approximated by Invariant. *)
+  let metarocq_variance occ =
+    let open UVars in
+    let _, pair = VarianceOccurrence.typing_and_cumul_variance_app FullyApplied occ in
+    let v = VariancePair.cumul_variance pair in
+    let v = match occ.VarianceOccurrence.in_type with
+      | None -> v
+      | Some ty -> Variance.sup v (VariancePair.cumul_variance ty)
+    in
+    match v with
+    | Variance.Contravariant -> Variance.Invariant
+    | v -> v
+
+  let rocq_variance occ =
+    let _, pair = UVars.VarianceOccurrence.typing_and_cumul_variance_app UVars.FullyApplied occ in
+    UVars.VariancePair.cumul_variance pair
+
+  (* MetaRocq has no cumulative constants: the variances Rocq infers for an inductive
+     mentioning a cumulative constant, or an inductive whose MetaRocq variances differ from
+     Rocq's ones, may not be valid for MetaRocq. All its universes are then quoted as
+     invariant. [faithful] tells if the quoted variances of an inductive are Rocq's ones. *)
+  let faithful_table : bool Mindmap.t ref = ref Mindmap.empty
+
+  let mib_terms mib =
+    let decl_terms d acc =
+      let acc = Context.Rel.Declaration.get_type d :: acc in
+      match Context.Rel.Declaration.get_value d with Some b -> b :: acc | None -> acc
+    in
+    Array.fold_left (fun acc oib ->
+        oib.mind_user_arity :: Array.to_list oib.mind_user_lc @ acc)
+      (List.fold_right decl_terms mib.mind_params_ctxt []) mib.mind_packets
+
+  let rec needs_invariant_fallback env mind mib =
+    let rec mentions c =
+      match Constr.kind c with
+      | Constr.Const (cst, _) ->
+        Declareops.constant_is_cumulative (Environ.lookup_constant cst env)
+      | Constr.Ind ((mind', _), _) | Constr.Construct (((mind', _), _), _) ->
+        not (MutInd.UserOrd.equal mind mind') && not (faithful env mind')
+      | Constr.Case (ci, _, _, _, _, _, _) when
+          not (MutInd.UserOrd.equal mind (fst ci.Constr.ci_ind)) && not (faithful env (fst ci.Constr.ci_ind)) -> true
+      | _ -> Constr.fold (fun acc c -> acc || mentions c) false c
+    in
+    List.exists mentions (mib_terms mib)
+
+  and faithful env mind =
+    match Mindmap.find_opt mind !faithful_table with
+    | Some b -> b
+    | None ->
+      (* Assume faithfulness while exploring, in case of cycles through nested inductives *)
+      faithful_table := Mindmap.add mind true !faithful_table;
+      let mib = Environ.lookup_mind mind env in
+      let b = match Declareops.inductive_variances mib with
+        | Some v when UVars.Variances.cumulative v ->
+          not (needs_invariant_fallback env mind mib) &&
+          Array.for_all (fun occ -> UVars.Variance.equal (metarocq_variance occ) (rocq_variance occ))
+            (UVars.Variances.repr v)
+        | _ -> true
+      in
+      faithful_table := Mindmap.add mind b !faithful_table;
+      b
+
+  let quote_ind_variances env mind mib =
+    match Declareops.inductive_variances mib with
+    | Some v when UVars.Variances.cumulative v ->
+      let occs = UVars.Variances.repr v in
+      if needs_invariant_fallback env mind mib then
+        Some (CArray.map_to_list (fun _ -> Q.quote_variance UVars.Variance.Invariant) occs)
+      else
+        Some (CArray.map_to_list (fun occ -> Q.quote_variance (metarocq_variance occ)) occs)
+    | _ -> None
   
   let on_template_instance tinst f u =
     match tinst with
@@ -207,12 +284,15 @@ struct
 
   let quote_universes_entry = function
     | Monomorphic_entry -> Q.mkMonomorphic_entry ()
-    | Polymorphic_entry ctx -> Q.mkPolymorphic_entry (Q.quote_univ_context (UVars.AbstractContext.repr ctx))
+    | Polymorphic_entry (ctx, _) -> Q.mkPolymorphic_entry (Q.quote_univ_context (UVars.AbstractContext.repr ctx))
 
-  let quote_universes_decl decl templ =
-    match decl with
-    | Monomorphic -> Q.mkMonomorphic_ctx ()
-    | Polymorphic ctx -> Q.mkPolymorphic_ctx (Q.quote_abstract_univ_context ctx)
+  let quote_universes_decl ((ctx, _) : Declarations.universes) =
+    if UVars.AbstractContext.is_empty ctx then Q.mkMonomorphic_ctx ()
+    else Q.mkPolymorphic_ctx (Q.quote_abstract_univ_context ctx)
+
+  let quote_ind_universes_decl = function
+    | Declarations.Template _ -> Q.mkMonomorphic_ctx ()
+    | Declarations.Polymorphic univs -> quote_universes_decl univs
 
   let quote_ugraph ?kept (g : UGraph.t) =
     let uctx = ugraph_contextset ?kept g in
@@ -350,7 +430,7 @@ struct
         let def', acc = quote_term acc env sigma def in
         let ty', acc = quote_term acc env sigma ty in
         let acc, arr' = CArray.fold_left_map (fun acc t -> let t', acc = quote_term acc env sigma t in acc, t') acc ar in
-        Q.mkArray (Q.universe_of_level (Q.quote_univ_level u)) arr' ~default:def' ~ty:ty', acc
+        Q.mkArray (Q.quote_universe u) arr' ~default:def' ~ty:ty', acc
       in
       aux acc env trm
     and quote_recdecl (acc : 'a) env sigma b (ns,ts,ds) =
@@ -373,7 +453,7 @@ struct
       (Q.mkCoFix ((qarities,a'),decl'), acc)
     and quote_minductive_type (acc : 'a) env sigma (t : MutInd.t) mib =
       let uctx = get_abstract_inductive_universes mib.Declarations.mind_universes in
-      let inst = UVars.UContext.instance uctx in
+      let inst = UVars.Instance.of_level_instance (UVars.UContext.instance uctx) in
       let tinst = get_template_instance mib in
       let indtys =
         (CArray.map_to_list (fun oib ->
@@ -448,8 +528,8 @@ struct
       in
       let nparams = Q.quote_int mib.Declarations.mind_nparams in
       let paramsctx, acc = quote_rel_context quote_term acc env sigma (on_template_instance tinst Vars.subst_instance_context mib.Declarations.mind_params_ctxt) in
-      let uctx = quote_universes_decl mib.Declarations.mind_universes mib.Declarations.mind_template in
-      let var = Option.map (CArray.map_to_list Q.quote_variance) mib.Declarations.mind_variance in
+      let uctx = quote_ind_universes_decl mib.Declarations.mind_universes in
+      let var = quote_ind_variances (snd env) t mib in
       let bodies = List.map Q.mk_one_inductive_body (List.rev ls) in
       let finite = Q.quote_mind_finiteness mib.Declarations.mind_finite in
       (* let templatePoly = Q.quote_bool mi.mind_template in *)
@@ -555,7 +635,7 @@ struct
                   Feedback.msg_debug (str"Exception raised while checking body of " ++ KerName.print kn);
                   raise e
             in
-            let uctx = quote_universes_decl cd.const_universes None in
+            let uctx = quote_universes_decl cd.const_universes in
             let ty, acc =
               let ty = cd.const_type in
               let univs = Vars.universes_of_constr ty in
@@ -666,14 +746,15 @@ struct
 
   let quote_constant_body bypass opaque_access env evm cd =
     let ty, body = quote_constant_body_aux bypass opaque_access env evm cd in
-    Q.mk_constant_body ty body (quote_universes_decl cd.const_universes None)
+    Q.mk_constant_body ty body (quote_universes_decl cd.const_universes)
       (Q.quote_relevance cd.const_relevance)
 
   let quote_constant_entry bypass opaque_access env evm cd =
     let (ty, body) = quote_constant_body_aux bypass opaque_access env evm cd in
-    let uctx = match cd.const_universes with
-      | Polymorphic auctx -> Polymorphic_entry auctx
-      | Monomorphic -> Monomorphic_entry
+    let uctx =
+      let (auctx, _) = cd.const_universes in
+      if UVars.AbstractContext.is_empty auctx then Monomorphic_entry
+      else Polymorphic_entry (auctx, None)
     in
     let univs = quote_universes_entry uctx in
     match body with

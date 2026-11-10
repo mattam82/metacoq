@@ -134,7 +134,7 @@ struct
 
   let unquote_evar env evm id args =
     if constr_equall id tfresh_evar_id then
-      let evm, (tyev, s) = Evarutil.new_type_evar env evm Evd.univ_flexible_alg in
+      let evm, (tyev, s) = Evarutil.new_type_evar env evm Evd.univ_flexible in
       let evm, ev = Evarutil.new_evar ~typeclass_candidate:false env evm tyev in
       evm, EConstr.Unsafe.to_constr ev
     else
@@ -201,7 +201,7 @@ struct
       if !strict_unquote_universe_mode then
         CErrors.user_err (str "It is not possible to unquote a fresh level in Strict Unquote Universe Mode.")
       else
-        let evm, l = Evd.new_univ_level_variable (Evd.UnivFlexible false) evm in
+        let evm, l = Evd.new_univ_level_variable (Evd.UnivFlexible) evm in
         debug (fun () -> str"Fresh level " ++ Univ.Level.raw_pr l ++ str" was added to the context.");
         evm, l
     else if constr_equall h lzero then
@@ -284,11 +284,6 @@ struct
   let unquote_universe_instance evm trm (* of type universe_instance *) =
     let l = unquote_list trm in
     let evm, l = map_evm unquote_universe evm l in
-    let l = List.map (fun u ->
-        match Univ.Universe.level u with
-        | Some l -> l
-        | None -> bad_term_verb trm "unquote_universe_instance_not_level") l
-    in
     evm, UVars.Instance.of_array ([||], Array.of_list l)
 
   let unquote_variance v =

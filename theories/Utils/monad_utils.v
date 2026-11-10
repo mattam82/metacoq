@@ -34,7 +34,10 @@ Section MapOpt.
 End MapOpt.
 
 Section MonadOperations.
-  Context {T : Type -> Type} {M : Monad T}.
+  (* Named so that the order of the universes of [monad_map] & co. does not depend on
+     unification: [TemplateMonadToPCUIC] gives explicit instances. *)
+  Universes d c.
+  Context {T : Type@{d} -> Type@{c}} {M : Monad@{d c} T}.
   Context {A B} (f : A -> T B).
   Fixpoint monad_map (l : list A)
     : T (list B)

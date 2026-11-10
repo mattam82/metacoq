@@ -83,13 +83,13 @@ Definition generate_proof_term (ty : term) (kn1 kn2 : kername) : term × term :=
       tApp <% @eq_refl %> [ty; tConst kn2 []] in
       (proof_ty, proof_body).
 
-Definition gen_prog (ty body : term) (kn : kername) : TemplateMonad unit :=
+Definition gen_prog (ty body : term) (kn : kername) : TemplateMonad@{_ Set} unit :=
   tmBind (tmUnquoteTyped Type ty)
          (fun A => ucst <- tmUnquoteTyped A body ;;
                   tmDefinition kn.2 ucst;;
                   ret tt).
 
-Definition gen_proof (suffix : string) (Σ : global_declarations) (mpath : modpath) (kn : kername) : TemplateMonad unit :=
+Definition gen_proof (suffix : string) (Σ : global_declarations) (mpath : modpath) (kn : kername) : TemplateMonad@{_ Set} unit :=
   match lookup_global Σ kn with
   | Some (ConstantDecl cb) =>
     let kn_after := (mpath, get_def_name kn ++ suffix) in
@@ -155,7 +155,7 @@ Definition gen_defs_and_proofs (Σold Σnew : global_declarations)
                                (mpath : modpath)
                                (suffix : string)
                                (seeds : KernameSet.t)
-                               : TemplateMonad unit :=
+                               : TemplateMonad@{_ Set} unit :=
   let filter_decls decls :=
     filter (fun '(kn,gd) =>
               match gd with

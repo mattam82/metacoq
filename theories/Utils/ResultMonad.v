@@ -7,6 +7,8 @@ Inductive result T E :=
 Arguments Ok {_ _}.
 Arguments Err {_ _}.
 
+(* Polymorphic, so that it applies to [fun T : Set => result T E] as well *)
+#[universes(polymorphic)]
 Global Instance Monad_result {E} : Monad (fun T => result T E) :=
   {| ret _ t := Ok t;
      bind _ _ mt f :=
