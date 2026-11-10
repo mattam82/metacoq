@@ -1,0 +1,3 @@
+; MetaRocq.Quotation is left out of the build for now (universes-and-variances branch:
+; its quotation instances are too slow to elaborate).
+(dirs :standard \ Quotation)
