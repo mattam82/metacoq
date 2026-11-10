@@ -212,7 +212,7 @@ Definition iota_body (Σ : global_env) (body : term) : term :=
   | t => t
   end.
 
-Definition extract_def_name {A : Type} (a : A) : TemplateMonad kername :=
+Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} kername :=
   a <- tmEval cbn a;;
   quoted <- tmQuote a;;
   let (head, args) := decompose_app quoted in

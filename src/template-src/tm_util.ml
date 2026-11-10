@@ -289,9 +289,9 @@ module RetypeMindEntry =
       match mind.mind_entry_universes with
       | Entries.Monomorphic_ind_entry -> evm
       | Entries.Template_ind_entry uctx -> evm
-      | Entries.Polymorphic_ind_entry uctx ->
+      | Entries.Polymorphic_ind_entry (uctx, _) ->
         let (qs, qcst), (us, ucst) = UVars.UContext.to_context_set (UVars.AbstractContext.repr uctx) in
-        Evd.merge_sort_context_set (UState.UnivFlexible false) evm ((qs, us), (qcst, ucst))
+        Evd.merge_sort_context_set (UState.UnivFlexible) evm ((qs, us), (qcst, ucst))
     in
     let evm, mind = infer_mentry_univs env evm mind in
     let evm = Evd.minimize_universes evm in
@@ -304,19 +304,24 @@ module RetypeMindEntry =
       | Entries.Template_ind_entry ctx ->
         let gctx = Evd.universe_context_set evm in
         gctx, { mind with mind_entry_universes = Entries.Template_ind_entry ctx }
-      | Entries.Polymorphic_ind_entry _ ->
+      | Entries.Polymorphic_ind_entry (_, variance) ->
         let auctx, mind = abstract_mentry_univs (Evd.to_universe_context evm) mind in
-        Univ.ContextSet.empty, { mind with mind_entry_universes = Entries.Polymorphic_ind_entry auctx }
+        Univ.ContextSet.empty, { mind with mind_entry_universes = Entries.Polymorphic_ind_entry (auctx, variance) }
     in ctx, mind
 end
 
 let ugraph_contextset ?kept (g : UGraph.t) =
   debug Pp.(fun () -> str"Turning universe graph into universe context set");
-  let levels, cstrs, eqs =
+  let levels, cstrs =
     match kept with
     | None ->
-      let cstrs, eqs = UGraph.constraints_of_universes g in
-      UGraph.domain g, cstrs, eqs
+      (* Equalities are represented by aliases [l := u] in the graph *)
+      let levels, cstrs, aliases = UGraph.constraints_of_universes g in
+      let levels = Univ.Level.Set.union (UGraph.domain g) levels in
+      Univ.Level.Map.fold (fun l (_, u) (levels, cstrs) ->
+          Univ.Level.Set.add l levels,
+          Univ.UnivConstraints.add (Univ.Universe.make l, Univ.UnivConstraint.Eq, u) cstrs)
+        aliases (levels, cstrs)
     | Some l ->
       debug Pp.(fun () -> str"Graph restricted to: " ++ Univ.Level.Set.pr Univ.Level.raw_pr l);
       (* Feedback.msg_debug Pp.(str"Graph is: "  ++ UGraph.pr_universes Univ.Level.pr (UGraph.repr g)); *)
@@ -324,17 +329,7 @@ let ugraph_contextset ?kept (g : UGraph.t) =
       let kept = Univ.Level.Set.inter dom l in
       let kept = Univ.Level.Set.remove Univ.Level.set kept in
       let cstrs = time Pp.(str"Computing graph restriction") (UGraph.constraints_for ~kept) g in
-      l, cstrs, []
-  in
-  let levels, cstrs =
-    List.fold_right (fun eqs acc ->
-      match Univ.Level.Set.elements eqs with
-      | [] -> acc
-      | x :: [] -> acc
-      | x :: rest ->
-        List.fold_right (fun p (levels, cstrs) ->
-          (Univ.Level.Set.add p levels, Univ.UnivConstraints.add (x, Univ.UnivConstraint.Eq, p) cstrs)) rest acc)
-      eqs (levels, cstrs)
+      l, cstrs
   in
   let levels = Univ.Level.Set.add Univ.Level.set levels in
   (* let levels = Univ.Level.Set.remove Univ.Level.prop levels in

@@ -223,16 +223,12 @@ struct
 
   let quote_constraint_type (c : Univ.UnivConstraint.kind) =
     match c with
-    | Lt -> Lazy.force tunivLe (* BEWARE: this is fixed in quote_univ_constraint *)
     | Le -> Lazy.force tunivLe
     | Eq -> Lazy.force tunivEq
 
-  let quote_univ_constraint ((l1, ct, l2) : Univ.UnivConstraint.t) =
-    let l1 = quote_level l1 in
-    let l2 = quote_level l2 in
-    let u1 = if ct == Lt then constr_mkApp (tsucc, [| universe_of_level l1 |]) else universe_of_level l1 in
+  let quote_univ_constraint ((u1, ct, u2) : Univ.UnivConstraint.t) =
     let ct = quote_constraint_type ct in
-    constr_mkApp (tmake_univ_constraint, [| u1; ct; universe_of_level l2 |])
+    constr_mkApp (tmake_univ_constraint, [| quote_universe u1; ct; quote_universe u2 |])
 
   let quote_univ_level u = quote_level u
   (* todo : can be deduced from quote_level, hence shoud be in the Reify module *)
@@ -242,11 +238,14 @@ struct
         CErrors.user_err Pp.(str "Quoting sort polymorphic instances not yet supported.")
     in
     (* we assume that valid instances do not contain [Prop] or [SProp] *)
-    to_coq_listl tuniverse (CArray.map_to_list quote_universe (Array.map Universe.make uarr))
+    to_coq_listl tuniverse (CArray.map_to_list quote_universe uarr)
 
-  let is_Lt = function
-    | Univ.UnivConstraint.Lt -> true
-    | _ -> false
+  let quote_univ_level_instance u =
+    let qarr, uarr = UVars.LevelInstance.to_array u in
+    let () = if not (CArray.is_empty qarr) then
+        CErrors.user_err Pp.(str "Quoting sort polymorphic instances not yet supported.")
+    in
+    to_coq_listl tlevel (CArray.map_to_list quote_level uarr)
 
   let is_Le = function
     | Univ.UnivConstraint.Le -> true
@@ -274,6 +273,8 @@ struct
     | UVars.Variance.Irrelevant -> Lazy.force cIrrelevant
     | UVars.Variance.Covariant -> Lazy.force cCovariant
     | UVars.Variance.Invariant -> Lazy.force cInvariant
+    (* MetaRocq has no contravariance: approximate by invariance *)
+    | UVars.Variance.Contravariant -> Lazy.force cInvariant
 
   let quote_cuminfo_variance var =
     let var_list = CArray.map_to_list quote_variance var in
@@ -290,7 +291,7 @@ struct
         CErrors.user_err Pp.(str "Quoting sort polymorphic ucontext not yet supported.")
     in
     let idents = to_coq_listl tname (CArray.map_to_list quote_name uarr) in
-    let inst' = quote_univ_instance (UVars.UContext.instance uctx) in
+    let inst' = quote_univ_level_instance (UVars.UContext.instance uctx) in
     let const' = quote_univ_constraints (UVars.UContext.univ_constraints uctx) in
     let p = constr_mkApp (tUContextmake', [|inst'; const'|]) in
     constr_mkApp (tUContextmake, [|idents; p |])
@@ -326,13 +327,13 @@ struct
     match uctx with
     | Entries.Monomorphic_entry ->
       mkMonomorphic_entry ()
-    | Entries.Polymorphic_entry uctx ->
+    | Entries.Polymorphic_entry (uctx, _) ->
       let ctx = quote_univ_context (UVars.AbstractContext.repr uctx) in
       constr_mkApp (cPolymorphic_entry, [| ctx |])
 
   let quote_ugraph (g : UGraph.t) =
     let inst' = quote_univ_instance UVars.Instance.empty in
-    let const' = quote_univ_constraints (fst (UGraph.constraints_of_universes g)) in
+    let const' = quote_univ_constraints (snd (ugraph_contextset g)) in
     let uctx = constr_mkApp (tUContextmake, [|inst' ; const'|]) in
     constr_mkApp (tadd_global_constraints, [|Lazy.force tinit_graph; constr_mkApp (cMonomorphic_ctx, [| uctx |])|])
 

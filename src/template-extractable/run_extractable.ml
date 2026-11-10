@@ -133,7 +133,7 @@ let of_constant_body ~opaque_access (env : Environ.env) (cd : Plugin_core.consta
   let {const_body = body; const_type = typ; const_universes = univs; const_relevance = rel} = cd in
   Ast0.Env.({cst_type = quote_term env (Evd.from_env env) typ;
          cst_body = Option.map (quote_term env (Evd.from_env env)) (get_constant_body ~opaque_access body);
-         cst_universes = quote_universes_decl univs None;
+         cst_universes = quote_universes_decl univs;
          cst_relevance = quote_relevance rel})
 
 (* what about the overflow?

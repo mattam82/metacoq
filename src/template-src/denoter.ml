@@ -175,10 +175,6 @@ struct
           let evm, arr = CArray.fold_left_map (fun evm a -> aux env evm a) evm arr in
           let evm, def = aux env evm def in
           let evm, ty = aux env evm ty in
-          let u = match Univ.Universe.level u with
-            | Some u -> u
-            | None -> CErrors.user_err Pp.(str "Array universe is not a level.")
-          in
           evm, Constr.mkArray (UVars.Instance.of_array ([||], [|u|]), arr, def, ty)
 
     in aux env evm trm

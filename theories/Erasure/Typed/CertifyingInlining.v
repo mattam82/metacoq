@@ -141,7 +141,7 @@ Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSe
   extract_def_name a.
 
 (* Mainly for testing purposes *)
-Definition inline_def {A}
+Definition inline_def {A : Type}
            (should_inline : kername -> bool)
            (def : A) : TemplateMonad global_declarations :=
   mpath <- tmCurrentModPath tt;;

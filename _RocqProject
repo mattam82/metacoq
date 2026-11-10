@@ -3,6 +3,8 @@
 -arg -deprecated-native-compiler-option
 -arg -w
 -arg -native-compiler-disabled
+# Installed plugins: findlib finds their META files there
+-I _build/install/default/lib
 -I _build/default/src/erasure-plugin
 -I _build/default/src/safechecker-plugin
 -I _build/default/src/template-extractable
