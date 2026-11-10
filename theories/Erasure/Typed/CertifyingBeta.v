@@ -54,7 +54,7 @@ Definition betared_globals_template
            (mpath : modpath)
            (Σ : global_declarations)
            (seeds : KernameSet.t)
-  : TemplateMonad global_declarations :=
+  : TemplateMonad@{_ Set} global_declarations :=
   let suffix := "_after_betared" in
   Σbeta <- tmEval lazy (betared_globals Σ);;
   gen_defs_and_proofs Σ Σbeta mpath suffix seeds;;
@@ -66,10 +66,10 @@ Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSe
   extract_def_name a.
 
 Definition betared_def {A : Type}
-           (def : A) : TemplateMonad global_declarations :=
+           (def : A) : TemplateMonad@{_ Set} global_declarations :=
   mpath <- tmCurrentModPath tt;;
   p <- tmQuoteRecTransp def false ;;
-  kn <- (extract_def_name def : TemplateMonad KernameSet.elt) ;;
+  kn <- (extract_def_name def : TemplateMonad@{_ Set} KernameSet.elt) ;;
   betared_globals_template mpath (declarations p.1) (KernameSet.singleton kn).
 
 Definition template_betared : TemplateTransform :=

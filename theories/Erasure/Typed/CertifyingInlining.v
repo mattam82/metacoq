@@ -130,7 +130,7 @@ Definition inline_globals_template
            (Σ : global_declarations)
            (should_inline : kername -> bool)
            (seeds : KernameSet.t)
-  : TemplateMonad global_declarations :=
+  : TemplateMonad@{_ Set} global_declarations :=
   let suffix := "_after_inlining" in
   decls_inlined <- tmEval lazy (inline_globals should_inline Σ);;
   gen_defs_and_proofs Σ decls_inlined mpath suffix seeds;;
@@ -143,7 +143,7 @@ Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSe
 (* Mainly for testing purposes *)
 Definition inline_def {A : Type}
            (should_inline : kername -> bool)
-           (def : A) : TemplateMonad global_declarations :=
+           (def : A) : TemplateMonad@{_ Set} global_declarations :=
   mpath <- tmCurrentModPath tt;;
   p <- tmQuoteRecTransp def false;;
   kn <- extract_def_name def;;
