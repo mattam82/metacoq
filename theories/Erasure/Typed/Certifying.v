@@ -120,7 +120,7 @@ Definition map_global_env_decls (f : global_declarations -> global_declarations)
     when we traversed all definition in [Σ1] *)
 Fixpoint traverse_env_aux (mpath : modpath) (suffix : string) (Σ2 : global_declarations)
          (affected : KernameSet.t) (dΣ1 : global_declarations) {struct dΣ1}
-         : TemplateMonad KernameSet.t :=
+         : TemplateMonad@{_ Set} KernameSet.t :=
   match dΣ1 with
   | [] => ret affected
   | (kn, ConstantDecl cb1) :: Σtail =>

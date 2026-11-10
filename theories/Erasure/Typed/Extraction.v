@@ -137,14 +137,14 @@ Definition extract_template_env_general
 Definition extract_template_env :=
   extract_template_env_general (@ret (fun T => result T string) _ _).
 
-Definition run_transforms_list (Σ : Ast.Env.global_env) (ts : list TemplateTransform) : TemplateMonad Ast.Env.global_env :=
+Definition run_transforms_list (Σ : Ast.Env.global_env) (ts : list TemplateTransform) : TemplateMonad@{_ Set} Ast.Env.global_env :=
   res <- tmEval lazy (compose_transforms ts Σ) ;;
   match res with
   | Ok Σ => ret Σ
   | Err s => tmFail s
   end.
 
-Definition run_transforms (Σ : Ast.Env.global_env) (params : extract_template_env_params) : TemplateMonad Ast.Env.global_env :=
+Definition run_transforms (Σ : Ast.Env.global_env) (params : extract_template_env_params) : TemplateMonad@{_ Set} Ast.Env.global_env :=
   let transforms := params.(template_transforms) in
   run_transforms_list Σ transforms.
 
@@ -153,7 +153,7 @@ Definition extract_template_env_certifying_passes
            (params : extract_template_env_params)
            (Σ : Ast.Env.global_env)
            (seeds : KernameSet.t)
-           (ignore : kername -> bool) : TemplateMonad ExAst.global_env :=
+           (ignore : kername -> bool) : TemplateMonad@{_ Set} ExAst.global_env :=
   Σtrans <- run_transforms Σ params ;;
   mpath <- tmCurrentModPath tt;;
   gen_defs_and_proofs (Ast.Env.declarations Σ) (Ast.Env.declarations Σtrans) mpath "_cert_pass" seeds;;
