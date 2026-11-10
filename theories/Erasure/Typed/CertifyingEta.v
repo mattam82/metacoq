@@ -216,7 +216,7 @@ Definition eta_global_env_template
            (mpath : modpath)
            (Σ : global_env)
            (seeds : KernameSet.t) (erasure_ignore : kername -> bool)
-  : TemplateMonad global_env :=
+  : TemplateMonad@{_ Set} global_env :=
   let suffix := "_expanded" in
   Σext <- tmEval lazy (eta_global_env overridden_masks trim_consts trim_inds Σ seeds erasure_ignore);;
   gen_defs_and_proofs (declarations Σ) (declarations Σext) mpath suffix seeds;;
@@ -231,7 +231,7 @@ Definition extract_def_name {A : Type} (a : A) : TemplateMonad@{_ Set} KernameSe
 Definition eta_expand_def
            {A : Type}
            (overridden_masks : kername -> option bitmask)
-           (trim_inds trim_consts : bool) (def : A) : TemplateMonad _ :=
+           (trim_inds trim_consts : bool) (def : A) : TemplateMonad@{_ Set} _ :=
   cur_mod <- tmCurrentModPath tt;;
   p <- tmQuoteRecTransp def false ;;
   kn <- extract_def_name def ;;

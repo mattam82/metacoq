@@ -120,7 +120,7 @@ Definition map_global_env_decls (f : global_declarations -> global_declarations)
     we generate a new definition and save the name to [affected] list, which is returned
     when we traversed all definition in [Σ1] *)
 Definition traverse_env (mpath : modpath) (suffix : string) (Σ1 Σ2 : global_declarations) :=
-  let f := fix go (affected : KernameSet.t) (dΣ1 dΣ2 : global_declarations) : TemplateMonad KernameSet.t :=
+  let f := fix go (affected : KernameSet.t) (dΣ1 dΣ2 : global_declarations) : TemplateMonad@{_ Set} KernameSet.t :=
       match dΣ1 with
       | [] => ret affected
       | (kn, ConstantDecl cb1) :: Σtail =>
